@@ -1,5 +1,6 @@
 import {NetworkModel} from './model/network.js';
-import {GenerationModel} from './model/generation.js';
+import { Population } from './neurolib/population.js';
+import { Neuroevolution } from './Neuroevolution.js';
 
 (function() {
 	var timeouts = [];
@@ -145,11 +146,11 @@ var Game = function(){
 }
 
 Game.prototype.start = function(){
+	
 	this.interval = 0;
 	this.score = 0;
 	this.pipes = [];
 	this.birds = [];
-
 	this.gen = Neuvol.nextGeneration();
 	for(var i in this.gen){
 		var b = new Bird();
@@ -178,8 +179,8 @@ Game.prototype.update = function(){
 			this.birds[i].y / this.height,
 			nextHoll
 			];
-
-			var res = this.gen[i].compute(inputs);
+			// var res = this.gen[i].activate(inputs);
+			var res = this.gen[i].compute(inputs,i);
 			if(res > 0.5){
 				this.birds[i].flap();
 			}
@@ -293,9 +294,18 @@ window.onload = function(){
 
 	var start = function(){
 		Neuvol = new Neuroevolution({
-			population:10,
+			population:50,
 			network:[2, [2], 1],
 		});
+
+		// Neuvol = new Population({
+		// 	individualNumber : 10,
+    	// 	inputLayerSize : 2,
+    	// 	hiddenLayerSize : 2,
+    	// 	outputLayerSize : 1
+		// });
+
+
 		game = new Game();
 		game.start();
 		game.update();

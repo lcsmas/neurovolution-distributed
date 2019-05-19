@@ -1,10 +1,12 @@
+import { NetworkModel } from './model/network.js'
+
 /**
  * Provides a set of classes and methods for handling Neuroevolution and
  * genetic algorithms.
  *
  * @param {options} An object of options for Neuroevolution.
  */
-var Neuroevolution = function (options) {
+export var Neuroevolution = function (options) {
 	var self = this; // reference to the top scope of this module
 
 	// Declaration of module parameters (options) and default values
@@ -16,7 +18,7 @@ var Neuroevolution = function (options) {
 		 * @return Logistic function output.
 		 */
 		activation: function (a) {
-			ap = (-a) / 1;
+			var ap = (-a) / 1;
 			return (1 / (1 + Math.exp(ap)))
 		},
 
@@ -232,8 +234,11 @@ var Neuroevolution = function (options) {
 	 * @param {inputs} Set of inputs.
 	 * @return Network output.
 	 */
-	Network.prototype.compute = function (inputs) {
+	Network.prototype.compute = function (inputs,foo) {
 		// Set the value of each Neuron in the input layer.
+		if(typeof this.layers[this.layers.length - 1] == 'undefined'){
+	
+		}
 		for (var i in inputs) {
 			if (this.layers[0] && this.layers[0].neurons[i]) {
 				this.layers[0].neurons[i].value = inputs[i];
@@ -261,6 +266,7 @@ var Neuroevolution = function (options) {
 		// All outputs of the Network.
 		var out = [];
 		var lastLayer = this.layers[this.layers.length - 1];
+		
 		for (var i in lastLayer.neurons) {
 			out.push(lastLayer.neurons[i].value);
 		}
@@ -377,13 +383,14 @@ var Neuroevolution = function (options) {
 				self.options.population); i++) {
 			if (nexts.length < self.options.population) {
 				// Push a deep copy of ith Genome's Nethwork.
-				nexts.push(JSON.parse(JSON.stringify(this.genomes[i].network)));
+				nexts.push(JSON.parse(JSON.stringify(this.genomes[i].network)));	
 			}
 		}
 
 		for (var i = 0; i < Math.round(self.options.randomBehaviour *
 				self.options.population); i++) {
 			var n = JSON.parse(JSON.stringify(this.genomes[0].network));
+			
 			for (var k in n.weights) {
 				n.weights[k] = self.options.randomClamped();
 			}
@@ -396,8 +403,11 @@ var Neuroevolution = function (options) {
 		while (true) {
 			for (var i = 0; i < max; i++) {
 				// Create the children and push them to the nexts array.
-				var childs = this.breed(this.genomes[i], this.genomes[max],
-					(self.options.nbChild > 0 ? self.options.nbChild : 1));
+				var childs = 0;
+
+				childs = this.breed(this.genomes[i], this.genomes[max],
+						(self.options.nbChild > 0 ? self.options.nbChild : 1));
+				
 				for (var c in childs) {
 					nexts.push(childs[c].network);
 					if (nexts.length >= self.options.population) {
@@ -408,9 +418,12 @@ var Neuroevolution = function (options) {
 				}
 			}
 			max++;
+
 			if (max >= this.genomes.length - 1) {
 				max = 0;
 			}
+			
+			
 		}
 	}
 
@@ -449,7 +462,6 @@ var Neuroevolution = function (options) {
 		}
 
 		this.generations.push(new Generation());
-		console.log(this.generations);
 		return out;
 	}
 
@@ -458,15 +470,16 @@ var Neuroevolution = function (options) {
 	 *
 	 * @return Next Generation.
 	 */
-	Generations.prototype.nextGeneration = function () {
+	Generations.prototype.nextGeneration = function (nn_serv) {
 		if (this.generations.length == 0) {
 			// Need to create first generation.
 			return false;
 		}
-
+		
 		var gen = this.generations[this.generations.length - 1]
 			.generateNextGeneration();
 		this.generations.push(new Generation());
+		
 		return gen;
 	}
 
@@ -504,19 +517,28 @@ var Neuroevolution = function (options) {
 	 */
 	self.nextGeneration = function () {
 		var networks = [];
-
 		
-
 		if (self.generations.generations.length == 0) {
+			
 			// If no Generations, create first.
-			networks = self.generations.firstGeneration();
+			// If the server is online we create a generations from server datas
+			networks = self.constructGenerationsFromServer(50);
+			self.generations.generations.push(new Generation());
+			console.log(networks);
+
+			
+			//  If the server is offline, we create the generation from scratch
+			if(networks.length == 0){
+				
+				networks = self.generations.firstGeneration();
+			}
 		} else {
 			// Otherwise, create next one.
-			networks = self.generations.nextGeneration();
+			networks = self.generations.nextGeneration();			
 		}
-
-		// Create Networks from the current Generation.
+		
 		var nns = [];
+		// Create Networks from the current Generation.
 		for (var i in networks) {
 			var nn = new Network();
 			nn.setSave(networks[i]);
@@ -537,13 +559,14 @@ var Neuroevolution = function (options) {
 		}
 
 		if (self.options.historic != -1) {
+			
 			// Remove older generations.
 			if (self.generations.generations.length > self.options.historic + 1) {
 				self.generations.generations.splice(0,
 					self.generations.generations.length - (self.options.historic + 1));
 			}
 		}
-
+		
 		return nns;
 	}
 
@@ -560,4 +583,46 @@ var Neuroevolution = function (options) {
 	}
 
 	self.getSave = function() {return JSON.parse(JSON.stringify(this))};
+
+	self.constructGenerationsFromServer = function(topk) {
+		const nm = new NetworkModel();
+		let res = nm.getTopKNetwork(topk);
+
+		let gen = [];
+		for(let l in res){
+			let datas = {
+				score : 0,
+				neurons: [], // Number of Neurons per layer.
+				weights: [] // Weights of each Neuron's inputs.
+			}
+
+			datas.score = res[l].score;
+
+			for(let i in res[l].layers){
+
+				let tmp = i;
+				while( res[l].layers[tmp].id != i){
+					if(tmp < res[l].layers.length - 1){
+						tmp++;
+					} else {
+						tmp = 0;
+					}
+					
+				}
+
+				datas.neurons.push(res[l].layers[tmp].neurons.length);
+				for(let j in res[l].layers[tmp].neurons) {
+					for( let k in res[l].layers[tmp].neurons[j].weights){
+						datas.weights.push(res[l].layers[tmp].neurons[j].weights[k]);
+					}
+				}
+			}
+
+			// let n = new Network();
+			// n.setSave(datas);
+			gen.push(datas);
+		}
+		return gen;	 
+	}
 }
+

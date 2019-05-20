@@ -12,18 +12,26 @@ export class NetworkModel extends Model {
         this.req.send(JSON.stringify(network));
     }
 
-    getTopKNetwork(k, callback) {
+    getTopKNetwork(k) {
         const topkURI = `/top/${k}`;
-        // this.req.onreadystatechange = () => {
-        //     if(this.req.readyState == XMLHttpRequest.DONE) {
-        //         if(this.req.status == 200) {
-        //             const res = 
-        //             callback(res);
-        //         }
-        //     }
-        // }
         this.req.open('GET', this.URI + topkURI, false);
         this.req.send();
         return JSON.parse(this.req.responseText);
     }
+
+    getUUID(){
+        const URI = this.URI + '/uuid';
+        this.req.open('GET', URI, false);
+        this.req.send();
+        return this.req.responseText;
+    }
+
+    count(){
+        const URI = this.URI + '/count';
+        this.req.open('GET', URI, false);
+        this.req.send();
+        return JSON.parse(this.req.responseText).count;
+    }
+
+    
 }

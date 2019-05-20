@@ -143,14 +143,21 @@ var Game = function(){
 	this.backgroundSpeed = 0.5;
 	this.backgroundx = 0;
 	this.maxScore = 0;
+	this.nm = new NetworkModel();
 }
 
 Game.prototype.start = function(){
-	
+
+	// Everytime the bird make a progress of 20% from the last try
+	// and it is in topk of the server then his network get sent
+	// to the server 
+	this.checkpoint = 500 * 1.2;
+
 	this.interval = 0;
 	this.score = 0;
 	this.pipes = [];
 	this.birds = [];
+	this.genScore = 0;
 	this.gen = Neuvol.nextGeneration();
 	for(var i in this.gen){
 		var b = new Bird();
@@ -186,12 +193,26 @@ Game.prototype.update = function(){
 			}
 
 			this.birds[i].update();
+
+			if(this.score >= this.checkpoint ){
+				console.log('Network passed the checkpoint ! Checking if in topk !');
+				if(Neuvol.networkIsInTopk(this.gen[i])){
+					this.nm.sendNetwork(this.gen[i]);
+					console.log('Network in top-k ! ------> sent to the server');
+				}
+				this.checkpoint = this.checkpoint * 1.2;
+			}
+
 			if(this.birds[i].isDead(this.height, this.pipes)){
 				this.birds[i].alive = false;
 				this.alives--;
+
 				Neuvol.networkScore(this.gen[i], this.score);
-				const nm = new NetworkModel();
-				nm.sendNetwork(this.gen[i]);
+				if(Neuvol.networkIsInTopk(this.gen[i])){
+					this.nm.sendNetwork(this.gen[i]);
+					console.log('Network in top-k ! ------> sent to the server');
+				}
+
 				if(this.isItEnd()){
 					this.start();
 				}
@@ -294,7 +315,7 @@ window.onload = function(){
 
 	var start = function(){
 		Neuvol = new Neuroevolution({
-			population:50,
+			population:10,
 			network:[2, [2], 1],
 		});
 

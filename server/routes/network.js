@@ -8,22 +8,40 @@ const client = new cassandra.Client(
     });
 const router = express.Router();
 const table = "network";
-const bucket = [
-    'bdcb02f6-791e-11e9-8f9e-2a86e4085a59',
-    'bdcb0594-791e-11e9-8f9e-2a86e4085a59',
-    'bdcb0828-791e-11e9-8f9e-2a86e4085a59',
-    'bdcb0968-791e-11e9-8f9e-2a86e4085a59',
-    'bdcb0a9e-791e-11e9-8f9e-2a86e4085a59'
-];
 
-function getRandomInt(max) {
-    return Math.floor(Math.random() * Math.floor(max));
-  }
+// const bucket = [
+//     'bdcb02f6-791e-11e9-8f9e-2a86e4085a59',
+//     'bdcb0594-791e-11e9-8f9e-2a86e4085a59',
+//     'bdcb0828-791e-11e9-8f9e-2a86e4085a59',
+//     'bdcb0968-791e-11e9-8f9e-2a86e4085a59',
+//     'bdcb0a9e-791e-11e9-8f9e-2a86e4085a59'
+// ];
+
+// function getRandomInt(max) {
+//     return Math.floor(Math.random() * Math.floor(max));
+//   }
+
+router.get('/uuid', (req, res) => {
+    const uuid = uuidv1();
+    res.status(200).send(uuid);
+})
+
+router.get('/count', (req, res) => {
+    let countStatement = 'SELECT COUNT(*) FROM network';
+    client.execute(countStatement, function (err, result) {
+        if (err) {
+            res.sendStatus(500);
+            return console.error(err);
+        }
+        res.status(200).send(result.rows[0]);
+    });
+})
 
 router.post('/', (req, res) => {
     let insertDatas = {};
     //insertDatas['bucket']=bucket[getRandomInt(bucket.length)];
-    insertDatas['network_id']=uuidv1();
+    
+    insertDatas['network_id']=req.body.network_id;
     insertDatas['score']=req.body.score;
     insertDatas['layers']=req.body.layers;
 

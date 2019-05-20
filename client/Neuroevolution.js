@@ -1,4 +1,6 @@
 import { NetworkModel } from './model/network.js'
+import { ScoreModel } from './model/score.js'
+import { Model } from './model/model.js';
 
 /**
  * Provides a set of classes and methods for handling Neuroevolution and
@@ -134,6 +136,8 @@ export var Neuroevolution = function (options) {
 	 * @constructor
 	 */
 	var Network = function () {
+		const nm = new NetworkModel();
+		this.network_id = nm.getUUID();
 		this.layers = [];
 		this.score;
 	}
@@ -179,12 +183,14 @@ export var Neuroevolution = function (options) {
 	 */
 	Network.prototype.getSave = function () {
 		var datas = {
+			network_id : 0,
 			score : 0,
 			neurons: [], // Number of Neurons per layer.
 			weights: [] // Weights of each Neuron's inputs.
 		};
 
 		datas.score = this.score;
+		datas.network_id = this.network_id;
 
 		for (var i in this.layers) {
 			datas.neurons.push(this.layers[i].neurons.length);
@@ -209,6 +215,9 @@ export var Neuroevolution = function (options) {
 		var previousNeurons = 0;
 		var index = 0;
 		var indexWeights = 0;
+
+		this.score = save.score;
+		this.network_id = save.network_id;
 		this.layers = [];
 		for (var i in save.neurons) {
 			// Create and populate layers.
@@ -521,20 +530,31 @@ export var Neuroevolution = function (options) {
 		if (self.generations.generations.length == 0) {
 			
 			// If no Generations, create first.
-			// If the server is online we create a generations from server datas
-			networks = self.constructGenerationsFromServer(50);
-			self.generations.generations.push(new Generation());
-			console.log(networks);
-
+			// If the server is online we create a generations from server
+			if(self.serverIsOnline() && self.serverHasEnoughData()){
+				networks = self.constructGenerationsFromServer(self.options.population);
+				if(typeof networks != 'undefined'){
+					self.generations.generations.push(new Generation());
+				}
+				console.log('First iteration ---------> populating from server');
+			}
 			
 			//  If the server is offline, we create the generation from scratch
 			if(networks.length == 0){
-				
 				networks = self.generations.firstGeneration();
 			}
 		} else {
-			// Otherwise, create next one.
-			networks = self.generations.nextGeneration();			
+			
+			// Otherwise, create next one from previous gen if no better on server
+			if(self.serverIsOnline() && self.serverHasEnoughData() && self.genFromServerIsBetter()){
+				console.log('server score is better and has differents network ----> updating local network')
+				networks = self.constructGenerationsFromServer(self.options.population);
+				self.generations.generations.push(new Generation());
+			} else {
+				console.log("Breeding generation ........");
+				networks = self.generations.nextGeneration();
+			}
+					
 		}
 		
 		var nns = [];
@@ -587,16 +607,21 @@ export var Neuroevolution = function (options) {
 	self.constructGenerationsFromServer = function(topk) {
 		const nm = new NetworkModel();
 		let res = nm.getTopKNetwork(topk);
+		if(typeof res.length == 0){
+			return undefined;
+		}
 
 		let gen = [];
 		for(let l in res){
 			let datas = {
+				network_id : 0,
 				score : 0,
 				neurons: [], // Number of Neurons per layer.
 				weights: [] // Weights of each Neuron's inputs.
 			}
 
 			datas.score = res[l].score;
+			datas.network_id = res[l].network_id;
 
 			for(let i in res[l].layers){
 
@@ -618,11 +643,123 @@ export var Neuroevolution = function (options) {
 				}
 			}
 
-			// let n = new Network();
-			// n.setSave(datas);
 			gen.push(datas);
 		}
+		
 		return gen;	 
 	}
+
+	self.genFromServerIsBetter= function(betterness) {
+		if(typeof betterness == 'undefined'){
+			// Default value of betterness is x10
+			betterness = 10;
+		}
+		let scoreGenServ = self.getServerScore();
+		let scoreGenLocal = self.getLocalScore();
+
+		//  Network have to be a bit trained before being synced with server
+		//  In case of the server being empty (or with low score network in top-k)
+		//  the network will be updated indefinitely without breeding
+		//  This will make the networks staing at a low score and not breeding 
+		if( scoreGenLocal < 100 * self.options.population/2 ){
+			return false;
+		}
+
+		return scoreGenServ > (scoreGenLocal * betterness);
+	}
+
+	// UNUSED (for future improvements)
+	self.genFromLocalIsBetter= function(betterness) {
+		if(typeof betterness == 'undefined'){
+			// Default value of betterness is x10
+			betterness = 10;
+		}
+		let scoreGenServ = self.getServerScore();
+		let scoreGenLocal = self.getLocalScore();
+		return (scoreGenServ * betterness) < scoreGenLocal;
+	}
+
+
+	// UNUSED (for future improvements)
+	self.localGenSameAsServer= function(sameness){
+		if(typeof sameness == 'undefined'){
+			// Sameness factor : 25% by default
+			sameness = 0.25
+		}
+		let networksServ = self.constructGenerationsFromServer(self.options.population);
+		let networksLocal = [];
+		let genLocal = self.generations.generations;
+		if(typeof genLocal[0] == 'undefined'){
+			return false;
+		}
+
+		
+		for(let i in genLocal[0].genomes){
+			networksLocal.push(genLocal[0].genomes[i].network);
+		}
+		
+		let localSet = new Set();
+		let serverSet = new Set();
+		for(let i in networksLocal){
+			localSet.add(networksLocal[i].network_id);
+			serverSet.add(networksServ[i].network_id)
+		}
+
+		return true;
+	}
+
+	self.getServerScore = function() {
+		let genServ = self.constructGenerationsFromServer(self.options.population);
+		let scoreGenServ = 0;
+		for(let i in genServ){
+			scoreGenServ += genServ[i].score;
+		}
+		
+		return scoreGenServ;
+	}
+
+	self.getLocalScore = function() {
+		let genLocal = self.generations.generations;
+		let scoreGenLocal = 0;
+		for(let i in genLocal){
+			scoreGenLocal += genLocal[0].genomes[i].score;
+		}
+		return scoreGenLocal;
+	}
+
+	self.serverHasEnoughData = function() {
+		const nm = new NetworkModel();
+		let count =  nm.count();
+		return count >= self.options.population;
+	}
+
+	self.serverIsOnline = function() {
+		const m = new Model();
+		return m.isOnline();
+	}
+
+	self.networkIsInTopk = function(network, k) {
+		this.k = k || self.options.population;
+		let topk = 0;
+		const sm = new ScoreModel();
+		topk = sm.getTopK(this.k);
+
+		if(topk.length < this.k){
+			return true;
+		}
+
+		let isInTopK = false;
+		for(let i in topk){
+			if(network.score > topk[i].score){
+				isInTopK = true;
+			}
+		}
+		return isInTopK;
+	}
+
+
+
+
+	
 }
 

@@ -1,6 +1,6 @@
 export class Model {
     constructor(){
-        this.serverURI = "http://localhost:3000/";
+        this.serverURI = "http://51.38.236.221:3000/";
     }
 
     isOnline(){

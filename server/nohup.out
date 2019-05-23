@@ -1,0 +1,12 @@
+internal/modules/cjs/loader.js:670
+    throw err;
+    ^
+
+Error: Cannot find module '/srv/http/neurovolution-distributed/server/main'
+    at Function.Module._resolveFilename (internal/modules/cjs/loader.js:668:15)
+    at Function.Module._load (internal/modules/cjs/loader.js:591:27)
+    at Function.Module.runMain (internal/modules/cjs/loader.js:877:12)
+    at internal/main/run_main_module.js:21:11
+Mon, 20 May 2019 18:03:42 GMT body-parser deprecated bodyParser: use individual json/urlencoded middlewares at neuro.js:12:9
+Mon, 20 May 2019 18:03:42 GMT body-parser deprecated undefined extended: provide extended option at node_modules/body-parser/index.js:105:29
+Neuro listening on port 3000
